@@ -1,7 +1,7 @@
 {
 	"id": "catchup",
 	"name": "Catchup",
-	"version": "1.0.1",
+	"version": "1.0.0",
 	"minAppVersion": "1.7.2",
 	"description": "Save and organize links, notes and ideas in a searchable list or Kanban board.",
 	"author": "CalC", 
