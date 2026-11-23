@@ -1,7 +1,7 @@
 {
-	"name": "obsidian-read-queue",
+	"name": "obsidian-catchup",
 	"version": "1.0.0",
-	"description": "An Obsidian plugin to capture links, notes and other things you want to read later.",
+	"description": "Capture links, notes and ideas to read later in Obsidian.",
 	"main": "main.js",
 	"type": "module",
 	"scripts": {

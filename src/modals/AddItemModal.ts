@@ -7,25 +7,25 @@ import {
 	Setting,
 } from "obsidian";
 
-import type ReadQueuePlugin from "../main";
+import type CatchupPlugin from "../main";
 import { guessKind, looksLikeUrl, normalizeUrl } from "../services/MetadataFetcher";
-import type { ReadingKind, ReadingPriority } from "../types";
+import type { ItemKind, ItemPriority } from "../types";
 
-export interface AddReadingSeed {
+export interface AddItemSeed {
 	url?: string;
 	title?: string;
 	description?: string;
-	kind?: ReadingKind;
+	kind?: ItemKind;
 }
 
-export class AddReadingModal extends Modal {
+export class AddItemModal extends Modal {
 	private submitting = false;
 	private submitButton: ButtonComponent | null = null;
 
 	constructor(
 		app: App,
-		private readonly plugin: ReadQueuePlugin,
-		private readonly seed: AddReadingSeed = {}
+		private readonly plugin: CatchupPlugin,
+		private readonly seed: AddItemSeed = {}
 	) {
 		super(app);
 	}
@@ -33,15 +33,15 @@ export class AddReadingModal extends Modal {
 	onOpen(): void {
 		const { contentEl, titleEl } = this;
 
-		titleEl.setText("Add to reading queue");
-		contentEl.addClass("read-queue-modal");
+		titleEl.setText("Add to Catchup");
+		contentEl.addClass("catchup-modal");
 
 		let url = this.seed.url ?? "";
 		let title = this.seed.title ?? "";
 		let description = this.seed.description ?? "";
-		let kind: ReadingKind = this.seed.kind ??
+		let kind: ItemKind = this.seed.kind ??
 			(this.seed.url ? "article" : "note");
-		let priority: ReadingPriority = "normal";
+		let priority: ItemPriority = "normal";
 		let tags = "";
 		let kindTouched = Boolean(this.seed.kind);
 		let kindDropdown: DropdownComponent | null = null;
@@ -78,7 +78,7 @@ export class AddReadingModal extends Modal {
 
 		new Setting(contentEl)
 			.setName("Title")
-			.setDesc("Fetched automatically when a link is added. Required for linkless items.")
+			.setDesc("Fetched automatically from the link when available.")
 			.addText((text) => {
 				text
 					.setPlaceholder("What do you want to read?")
@@ -128,7 +128,7 @@ export class AddReadingModal extends Modal {
 				dropdown.setValue(kind);
 
 				dropdown.onChange((value) => {
-					kind = value as ReadingKind;
+					kind = value as ItemKind;
 					kindTouched = true;
 				});
 			});
@@ -142,7 +142,7 @@ export class AddReadingModal extends Modal {
 				dropdown.setValue(priority);
 
 				dropdown.onChange((value) => {
-					priority = value as ReadingPriority;
+					priority = value as ItemPriority;
 				});
 			});
 
@@ -186,7 +186,7 @@ export class AddReadingModal extends Modal {
 			this.setSubmitting(true);
 
 			try {
-				await this.plugin.createReading({
+				await this.plugin.createItem({
 					url: trimmedUrl,
 					title: trimmedTitle,
 					description: description.trim(),
@@ -210,7 +210,10 @@ export class AddReadingModal extends Modal {
 			}
 		};
 
-		this.submitButton?.setButtonText("Add to queue").setCta().onClick(() => void submit());
+		this.submitButton
+			?.setButtonText("Add to Catchup")
+			.setCta()
+			.onClick(() => void submit());
 	}
 
 	onClose(): void {
@@ -220,7 +223,7 @@ export class AddReadingModal extends Modal {
 	private setSubmitting(value: boolean): void {
 		this.submitting = value;
 		this.submitButton?.setDisabled(value).setButtonText(
-			value ? "Adding…" : "Add to queue"
+			value ? "Adding…" : "Add to Catchup"
 		);
 	}
 }

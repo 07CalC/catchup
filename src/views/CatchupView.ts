@@ -2,43 +2,44 @@ import {
 	ItemView,
 	Menu,
 	Notice,
+	Platform,
 	setIcon,
 	TFile,
 	WorkspaceLeaf,
 } from "obsidian";
 
-import type ReadQueuePlugin from "../main";
-import type { ReadingNote } from "../services/ReadingRepository";
+import type CatchupPlugin from "../main";
+import type { CatchupEntry } from "../services/CatchupRepository";
 import {
-	READING_STATUSES,
-	type ReadingKind,
-	type ReadingPriority,
-	type ReadingStatus,
+	ITEM_STATUSES,
+	type ItemKind,
+	type ItemPriority,
+	type ItemStatus,
 } from "../types";
 
-export const VIEW_TYPE_READING_QUEUE = "reading-queue-view";
+export const VIEW_TYPE_CATCHUP = "catchup-view";
 
-type StatusFilter = ReadingStatus | "all";
+type StatusFilter = ItemStatus | "all";
 
-const STATUS_LABELS: Record<ReadingStatus, string> = {
+const STATUS_LABELS: Record<ItemStatus, string> = {
 	unread: "Unread",
 	reading: "Reading",
 	read: "Read",
 };
 
-const STATUS_ORDER: Record<ReadingStatus, number> = {
+const STATUS_ORDER: Record<ItemStatus, number> = {
 	unread: 0,
 	reading: 1,
 	read: 2,
 };
 
-const PRIORITY_ORDER: Record<ReadingPriority, number> = {
+const PRIORITY_ORDER: Record<ItemPriority, number> = {
 	high: 0,
 	normal: 1,
 	low: 2,
 };
 
-const KIND_ICONS: Record<ReadingKind, string> = {
+const KIND_ICONS: Record<ItemKind, string> = {
 	article: "file-text",
 	video: "video",
 	book: "book",
@@ -74,8 +75,8 @@ interface FilterButton {
 	el: HTMLButtonElement;
 }
 
-export class ReadingQueueView extends ItemView {
-	private notes: ReadingNote[] = [];
+export class CatchupView extends ItemView {
+	private entries: CatchupEntry[] = [];
 	private filter: StatusFilter = "all";
 	private query = "";
 	private listEl: HTMLElement | null = null;
@@ -84,17 +85,17 @@ export class ReadingQueueView extends ItemView {
 
 	constructor(
 		leaf: WorkspaceLeaf,
-		private readonly plugin: ReadQueuePlugin
+		private readonly plugin: CatchupPlugin
 	) {
 		super(leaf);
 	}
 
 	getViewType(): string {
-		return VIEW_TYPE_READING_QUEUE;
+		return VIEW_TYPE_CATCHUP;
 	}
 
 	getDisplayText(): string {
-		return "Reading queue";
+		return "Catchup";
 	}
 
 	getIcon(): string {
@@ -106,7 +107,7 @@ export class ReadingQueueView extends ItemView {
 	}
 
 	async refresh(): Promise<void> {
-		this.notes = await this.plugin.repository.list();
+		this.entries = await this.plugin.repository.list();
 		this.render();
 	}
 
@@ -114,46 +115,46 @@ export class ReadingQueueView extends ItemView {
 		const { contentEl } = this;
 
 		contentEl.empty();
-		contentEl.addClass("reading-queue");
+		contentEl.addClass("catchup");
 
 		const header = contentEl.createDiv({
-			cls: "reading-queue-header",
+			cls: "catchup-header",
 		});
 
 		const heading = header.createDiv({
-			cls: "reading-queue-heading",
+			cls: "catchup-heading",
 		});
 
 		heading.createEl("h3", {
-			text: "Reading queue",
+			text: "Catchup",
 		});
 
 		this.countEl = heading.createDiv({
-			cls: "reading-queue-count",
+			cls: "catchup-count",
 		});
 
 		const addButton = header.createEl("button", {
-			cls: "reading-queue-add",
-			attr: { "aria-label": "Add to reading queue" },
+			cls: "mod-cta catchup-add",
+			attr: { "aria-label": "Add to Catchup" },
 		});
 
 		setIcon(addButton, "plus");
 		addButton.createSpan({ text: "Add" });
 
 		addButton.addEventListener("click", () => {
-			this.plugin.addReading();
+			this.plugin.addItem();
 		});
 
 		const toolbar = contentEl.createDiv({
-			cls: "reading-queue-toolbar",
+			cls: "catchup-toolbar",
 		});
 
 		const search = toolbar.createEl("input", {
-			cls: "reading-queue-search",
+			cls: "catchup-search",
 			type: "search",
 			attr: {
-				placeholder: "Search your queue…",
-				"aria-label": "Search your reading queue",
+				placeholder: "Search Catchup…",
+				"aria-label": "Search Catchup",
 			},
 		});
 
@@ -165,7 +166,7 @@ export class ReadingQueueView extends ItemView {
 		});
 
 		const filters = toolbar.createDiv({
-			cls: "reading-queue-filters",
+			cls: "catchup-filters",
 		});
 
 		this.filterButtons = [];
@@ -179,7 +180,7 @@ export class ReadingQueueView extends ItemView {
 
 		for (const filter of filtersList) {
 			const button = filters.createEl("button", {
-				cls: "reading-queue-filter",
+				cls: "catchup-filter",
 			});
 
 			button.addEventListener("click", () => {
@@ -194,7 +195,7 @@ export class ReadingQueueView extends ItemView {
 		}
 
 		this.listEl = contentEl.createDiv({
-			cls: "reading-queue-list",
+			cls: "catchup-list",
 		});
 
 		this.renderList();
@@ -208,16 +209,16 @@ export class ReadingQueueView extends ItemView {
 
 		const query = this.query.trim().toLowerCase();
 
-		const filtered = this.notes
+		const filtered = this.entries
 			.filter(
-				(note) =>
+				(entry) =>
 					this.filter === "all" ||
-					note.item.status === this.filter
+					entry.item.status === this.filter
 			)
-			.filter((note) => {
+			.filter((entry) => {
 				if (!query) return true;
 
-				const { title, description, url, tags } = note.item;
+				const { title, description, url, tags } = entry.item;
 
 				return [title, description, url, tags.join(" ")]
 					.some((value) => value.toLowerCase().includes(query));
@@ -233,75 +234,77 @@ export class ReadingQueueView extends ItemView {
 
 		this.updateFilterLabels();
 
-		const unread = this.notes.filter(
-			(note) => note.item.status === "unread"
+		const unread = this.entries.filter(
+			(entry) => entry.item.status === "unread"
 		).length;
 
 		this.countEl?.setText(
-			`${unread} unread · ${this.notes.length} total`
+			`${unread} unread · ${this.entries.length} total`
 		);
 
 		if (filtered.length === 0) {
 			listEl.createEl("p", {
-				cls: "reading-queue-empty",
-				text: this.notes.length === 0
-					? "Nothing here yet. Add a link, or save a note about something you want to read."
+				cls: "catchup-empty",
+				text: this.entries.length === 0
+					? "Nothing here yet. Add a link or save a note for later."
 					: "Nothing matches this filter.",
 			});
 
 			return;
 		}
 
-		for (const note of filtered) {
-			this.renderItem(note);
+		for (const entry of filtered) {
+			this.renderItem(entry);
 		}
 	}
 
 	private updateFilterLabels(): void {
 		for (const { status, el } of this.filterButtons) {
 			const count = status === "all"
-				? this.notes.length
-				: this.notes.filter(
-					(note) => note.item.status === status
+				? this.entries.length
+				: this.entries.filter(
+					(entry) => entry.item.status === status
 				).length;
 
-			el.setText(`${status === "all" ? "All" : STATUS_LABELS[status]} ${count}`);
+			el.setText(
+				`${status === "all" ? "All" : STATUS_LABELS[status]} ${count}`
+			);
 			el.toggleClass("is-active", this.filter === status);
 		}
 	}
 
-	private renderItem(note: ReadingNote): void {
+	private renderItem(entry: CatchupEntry): void {
 		if (!this.listEl) return;
 
-		const { item, file } = note;
+		const { item, file } = entry;
 
 		const card = this.listEl.createDiv({
-			cls: "reading-queue-item",
+			cls: "catchup-item",
 		});
 
 		card.toggleClass("is-read", item.status === "read");
 
 		const main = card.createDiv({
-			cls: "reading-queue-item-main",
+			cls: "catchup-item-main",
 		});
 
 		const kindIcon = main.createSpan({
-			cls: "reading-queue-kind",
+			cls: "catchup-kind",
 		});
 
 		setIcon(kindIcon, KIND_ICONS[item.kind]);
 		kindIcon.setAttribute("aria-label", item.kind);
 
 		const content = main.createDiv({
-			cls: "reading-queue-item-content",
+			cls: "catchup-item-content",
 		});
 
 		const titleRow = content.createDiv({
-			cls: "reading-queue-title-row",
+			cls: "catchup-title-row",
 		});
 
 		const title = titleRow.createEl("a", {
-			cls: "reading-queue-title",
+			cls: "catchup-title",
 			text: item.title,
 			href: item.url || undefined,
 		});
@@ -320,20 +323,20 @@ export class ReadingQueueView extends ItemView {
 
 		if (item.priority === "high") {
 			titleRow.createSpan({
-				cls: "reading-queue-priority",
+				cls: "catchup-priority",
 				text: "High",
 			});
 		}
 
 		if (item.description) {
 			content.createDiv({
-				cls: "reading-queue-description",
+				cls: "catchup-description",
 				text: item.description,
 			});
 		}
 
 		const meta = content.createDiv({
-			cls: "reading-queue-meta",
+			cls: "catchup-meta",
 		});
 
 		const hostname = hostnameOf(item.url);
@@ -350,23 +353,23 @@ export class ReadingQueueView extends ItemView {
 
 		for (const tag of item.tags) {
 			meta.createSpan({
-				cls: "reading-queue-tag",
+				cls: "catchup-tag",
 				text: `#${tag}`,
 			});
 		}
 
 		const footer = card.createDiv({
-			cls: "reading-queue-footer",
+			cls: "catchup-footer",
 		});
 
 		const statusSelect = footer.createEl("select", {
-			cls: "dropdown reading-queue-status",
+			cls: "dropdown catchup-status",
 			attr: {
 				"aria-label": "Reading status",
 			},
 		});
 
-		for (const status of READING_STATUSES) {
+		for (const status of ITEM_STATUSES) {
 			statusSelect.createEl("option", {
 				value: status,
 				text: STATUS_LABELS[status],
@@ -377,18 +380,18 @@ export class ReadingQueueView extends ItemView {
 
 		statusSelect.addEventListener("change", () => {
 			void this.updateStatus(
-				note,
-				statusSelect.value as ReadingStatus
+				entry,
+				statusSelect.value as ItemStatus
 			);
 		});
 
 		const actions = footer.createDiv({
-			cls: "reading-queue-actions",
+			cls: "catchup-actions",
 		});
 
 		if (item.url) {
 			const openButton = actions.createEl("button", {
-				cls: "reading-queue-action",
+				cls: "clickable-icon",
 				attr: { "aria-label": "Open original" },
 			});
 
@@ -400,7 +403,7 @@ export class ReadingQueueView extends ItemView {
 		}
 
 		const noteButton = actions.createEl("button", {
-			cls: "reading-queue-action",
+			cls: "clickable-icon",
 			attr: { "aria-label": "Open note" },
 		});
 
@@ -411,20 +414,20 @@ export class ReadingQueueView extends ItemView {
 		});
 
 		const menuButton = actions.createEl("button", {
-			cls: "reading-queue-action",
+			cls: "clickable-icon",
 			attr: { "aria-label": "More actions" },
 		});
 
 		setIcon(menuButton, "more-horizontal");
 
 		menuButton.addEventListener("click", (event) => {
-			this.showMenu(event, note);
+			this.showMenu(event, entry);
 		});
 	}
 
-	private showMenu(event: MouseEvent, note: ReadingNote): void {
+	private showMenu(event: MouseEvent, entry: CatchupEntry): void {
 		const menu = new Menu();
-		const { item, file } = note;
+		const { item, file } = entry;
 
 		if (item.url) {
 			const url = item.url;
@@ -464,13 +467,13 @@ export class ReadingQueueView extends ItemView {
 
 		menu.addSeparator();
 
-		for (const status of READING_STATUSES) {
+		for (const status of ITEM_STATUSES) {
 			if (status === item.status) continue;
 
 			menu.addItem((menuItem) =>
 				menuItem
 					.setTitle(`Mark as ${STATUS_LABELS[status].toLowerCase()}`)
-					.onClick(() => void this.updateStatus(note, status))
+					.onClick(() => void this.updateStatus(entry, status))
 			);
 		}
 
@@ -478,39 +481,42 @@ export class ReadingQueueView extends ItemView {
 
 		menu.addItem((menuItem) =>
 			menuItem
-				.setTitle("Remove from queue")
+				.setTitle("Remove from Catchup")
 				.setIcon("trash")
-				.onClick(() => void this.removeNote(note))
+				.onClick(() => void this.removeItem(entry))
 		);
 
 		menu.showAtMouseEvent(event);
 	}
 
 	private async updateStatus(
-		note: ReadingNote,
-		status: ReadingStatus
+		entry: CatchupEntry,
+		status: ItemStatus
 	): Promise<void> {
-		if (note.item.status === status) return;
+		if (entry.item.status === status) return;
 
-		await this.plugin.repository.update(note.file, { status });
-		note.item.status = status;
+		await this.plugin.repository.update(entry.file, { status });
+		entry.item.status = status;
 		this.renderList();
 	}
 
-	private async removeNote(note: ReadingNote): Promise<void> {
-		await this.plugin.repository.remove(note.file);
+	private async removeItem(entry: CatchupEntry): Promise<void> {
+		await this.plugin.repository.remove(entry.file);
 
-		this.notes = this.notes.filter(
-			(candidate) => candidate.file.path !== note.file.path
+		this.entries = this.entries.filter(
+			(candidate) => candidate.file.path !== entry.file.path
 		);
 
 		this.renderList();
 
-		new Notice("Removed from reading queue");
+		new Notice("Removed from Catchup");
 	}
 
 	private async openNote(file: TFile): Promise<void> {
-		const leaf = this.app.workspace.getLeaf("tab");
+		const leaf = Platform.isPhone
+			? this.app.workspace.getLeaf(false)
+			: this.app.workspace.getLeaf("tab");
+
 		await leaf.openFile(file);
 	}
 }

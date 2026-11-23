@@ -7,38 +7,45 @@ import {
 } from "obsidian";
 
 import {
-	READING_KINDS,
-	READING_PRIORITIES,
-	READING_STATUSES,
+	ITEM_KINDS,
+	ITEM_PRIORITIES,
+	ITEM_STATUSES,
 } from "../types";
 import type {
-	NewReadingItem,
-	ReadingItem,
-	ReadingKind,
-	ReadingPriority,
-	ReadingStatus,
+	CatchupItem,
+	ItemKind,
+	ItemPriority,
+	ItemStatus,
+	NewCatchupItem,
 } from "../types";
 
-export interface ReadingNote {
+export interface CatchupEntry {
 	file: TFile;
-	item: ReadingItem;
+	item: CatchupItem;
 }
 
-function toKind(value: unknown): ReadingKind {
-	return READING_KINDS.includes(value as ReadingKind)
-		? (value as ReadingKind)
+const ITEM_TYPE = "catchup";
+const LEGACY_ITEM_TYPE = "reading";
+
+export function isCatchupType(value: unknown): boolean {
+	return value === ITEM_TYPE || value === LEGACY_ITEM_TYPE;
+}
+
+function toKind(value: unknown): ItemKind {
+	return ITEM_KINDS.includes(value as ItemKind)
+		? (value as ItemKind)
 		: "article";
 }
 
-function toStatus(value: unknown): ReadingStatus {
-	return READING_STATUSES.includes(value as ReadingStatus)
-		? (value as ReadingStatus)
+function toStatus(value: unknown): ItemStatus {
+	return ITEM_STATUSES.includes(value as ItemStatus)
+		? (value as ItemStatus)
 		: "unread";
 }
 
-function toPriority(value: unknown): ReadingPriority {
-	return READING_PRIORITIES.includes(value as ReadingPriority)
-		? (value as ReadingPriority)
+function toPriority(value: unknown): ItemPriority {
+	return ITEM_PRIORITIES.includes(value as ItemPriority)
+		? (value as ItemPriority)
 		: "normal";
 }
 
@@ -87,7 +94,7 @@ function slugify(text: string): string {
 	return fallback || "untitled";
 }
 
-export class ReadingRepository {
+export class CatchupRepository {
 	constructor(
 		private readonly app: App,
 		private readonly getFolder: () => string
@@ -98,21 +105,21 @@ export class ReadingRepository {
 			.trim()
 			.replace(/^\/+|\/+$/g, "");
 
-		return normalizePath(folder || "Reading");
+		return normalizePath(folder || "Catchup");
 	}
 
-	async list(): Promise<ReadingNote[]> {
-		const notes: ReadingNote[] = [];
+	async list(): Promise<CatchupEntry[]> {
+		const entries: CatchupEntry[] = [];
 
 		for (const file of this.app.vault.getMarkdownFiles()) {
 			const frontmatter = this.app.metadataCache
 				.getFileCache(file)?.frontmatter;
 
-			if (!frontmatter || frontmatter.type !== "reading") {
+			if (!frontmatter || !isCatchupType(frontmatter.type)) {
 				continue;
 			}
 
-			notes.push({
+			entries.push({
 				file,
 				item: {
 					title: String(frontmatter.title || file.basename),
@@ -134,25 +141,24 @@ export class ReadingRepository {
 			});
 		}
 
-		return notes;
+		return entries;
 	}
 
-	async findByUrl(url: string): Promise<ReadingNote | null> {
+	async findByUrl(url: string): Promise<CatchupEntry | null> {
 		const target = url.replace(/\/+$/, "");
+		const entries = await this.list();
 
-		const notes = await this.list();
-
-		return notes.find(
-			(note) => note.item.url.replace(/\/+$/, "") === target
+		return entries.find(
+			(entry) => entry.item.url.replace(/\/+$/, "") === target
 		) ?? null;
 	}
 
-	async create(input: NewReadingItem): Promise<ReadingNote> {
+	async create(input: NewCatchupItem): Promise<CatchupEntry> {
 		const folderPath = this.folderPath;
 
 		await this.ensureFolder(folderPath);
 
-		const item: ReadingItem = {
+		const item: CatchupItem = {
 			title: input.title?.trim() || input.url?.trim() || "Untitled",
 			url: input.url?.trim() ?? "",
 			description: input.description?.trim() ?? "",
@@ -169,7 +175,7 @@ export class ReadingRepository {
 		const path = this.uniquePath(folderPath, slugify(item.title));
 
 		const frontmatter: Record<string, unknown> = {
-			type: "reading",
+			type: ITEM_TYPE,
 			status: item.status,
 			priority: item.priority,
 			kind: item.kind,
@@ -210,7 +216,7 @@ export class ReadingRepository {
 	async update(
 		file: TFile,
 		patch: Partial<
-			Pick<ReadingItem, "status" | "priority" | "kind" | "tags">
+			Pick<CatchupItem, "status" | "priority" | "kind" | "tags">
 		>
 	): Promise<void> {
 		await this.app.fileManager.processFrontMatter(file, (frontmatter) => {

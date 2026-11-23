@@ -1,9 +1,9 @@
 {
-	"id": "Read-Queue",
-	"name": "Read Queue",
+	"id": "catchup",
+	"name": "Catchup",
 	"version": "1.0.0",
 	"minAppVersion": "1.7.2",
-	"description": "A plugin that allows you to queue up resources to read later.",
+	"description": "Capture links, notes and ideas to read later.",
 	"author": "CalC <hello@vinm.me>",
 	"authorUrl": "https://vinm.me",
 	"isDesktopOnly": false

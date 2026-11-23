@@ -7,13 +7,13 @@ import {
 } from "obsidian";
 
 import {
-	AddReadingModal,
-	type AddReadingSeed,
-} from "./modals/AddReadingModal";
+	AddItemModal,
+	type AddItemSeed,
+} from "./modals/AddItemModal";
 import {
-	ReadingQueueView,
-	VIEW_TYPE_READING_QUEUE,
-} from "./views/ReadingQueueView";
+	CatchupView,
+	VIEW_TYPE_CATCHUP,
+} from "./views/CatchupView";
 import {
 	fetchMetadata,
 	guessKind,
@@ -21,58 +21,59 @@ import {
 	normalizeUrl,
 } from "./services/MetadataFetcher";
 import {
-	ReadingRepository,
-	type ReadingNote,
-} from "./services/ReadingRepository";
+	CatchupRepository,
+	isCatchupType,
+	type CatchupEntry,
+} from "./services/CatchupRepository";
 import {
+	CatchupSettingTab,
 	DEFAULT_SETTINGS,
-	ReadQueueSettingTab,
-	type ReadQueueSettings,
+	type CatchupSettings,
 } from "./settings";
-import type { NewReadingItem } from "./types";
+import type { NewCatchupItem } from "./types";
 
-export default class ReadQueuePlugin extends Plugin {
-	settings: ReadQueueSettings = { ...DEFAULT_SETTINGS };
-	repository!: ReadingRepository;
+export default class CatchupPlugin extends Plugin {
+	settings: CatchupSettings = { ...DEFAULT_SETTINGS };
+	repository!: CatchupRepository;
 
 	private refreshTimer: number | null = null;
 
 	async onload() {
 		await this.loadSettings();
 
-		this.repository = new ReadingRepository(
+		this.repository = new CatchupRepository(
 			this.app,
 			() => this.settings.folder
 		);
 
 		this.registerView(
-			VIEW_TYPE_READING_QUEUE,
-			(leaf) => new ReadingQueueView(leaf, this)
+			VIEW_TYPE_CATCHUP,
+			(leaf) => new CatchupView(leaf, this)
 		);
 
-		this.addSettingTab(new ReadQueueSettingTab(this.app, this));
+		this.addSettingTab(new CatchupSettingTab(this.app, this));
 
 		this.addRibbonIcon(
 			"book-open",
-			"Open reading queue",
+			"Open Catchup",
 			() => void this.activateView()
 		);
 
 		this.addCommand({
-			id: "add-to-reading-queue",
-			name: "Add to reading queue",
-			callback: () => this.addReading(),
+			id: "add-item",
+			name: "Add item",
+			callback: () => this.addItem(),
 		});
 
 		this.addCommand({
-			id: "add-clipboard-to-reading-queue",
-			name: "Add clipboard contents to reading queue",
+			id: "add-clipboard",
+			name: "Add clipboard contents",
 			callback: () => void this.addFromClipboard(),
 		});
 
 		this.addCommand({
-			id: "add-selection-to-reading-queue",
-			name: "Add selection to reading queue",
+			id: "add-selection",
+			name: "Add selection",
 			editorCheckCallback: (checking, editor) => {
 				const selection = editor.getSelection().trim();
 
@@ -87,14 +88,14 @@ export default class ReadQueuePlugin extends Plugin {
 		});
 
 		this.addCommand({
-			id: "open-reading-queue",
-			name: "Open reading queue",
+			id: "open-queue",
+			name: "Open queue",
 			callback: () => void this.activateView(),
 		});
 
 		this.registerEvent(
 			this.app.metadataCache.on("changed", (file) => {
-				if (this.isReadingFile(file)) {
+				if (this.isCatchupFile(file)) {
 					this.scheduleRefresh();
 				}
 			})
@@ -102,7 +103,7 @@ export default class ReadQueuePlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.vault.on("delete", (file) => {
-				if (this.isReadingFile(file)) {
+				if (this.isCatchupFile(file)) {
 					this.scheduleRefresh();
 				}
 			})
@@ -110,7 +111,7 @@ export default class ReadQueuePlugin extends Plugin {
 
 		this.registerEvent(
 			this.app.vault.on("rename", (file, oldPath) => {
-				if (this.isReadingPath(oldPath) || this.isReadingFile(file)) {
+				if (this.isCatchupPath(oldPath) || this.isCatchupFile(file)) {
 					this.scheduleRefresh();
 				}
 			})
@@ -126,7 +127,7 @@ export default class ReadQueuePlugin extends Plugin {
 
 	async loadSettings(): Promise<void> {
 		const data = (await this.loadData()) as
-			Partial<ReadQueueSettings> | null;
+			Partial<CatchupSettings> | null;
 
 		this.settings = Object.assign({}, DEFAULT_SETTINGS, data ?? {});
 	}
@@ -136,8 +137,8 @@ export default class ReadQueuePlugin extends Plugin {
 		await this.refreshViews();
 	}
 
-	addReading(seed: AddReadingSeed = {}): void {
-		new AddReadingModal(this.app, this, seed).open();
+	addItem(seed: AddItemSeed = {}): void {
+		new AddItemModal(this.app, this, seed).open();
 	}
 
 	addFromText(text: string): void {
@@ -149,7 +150,7 @@ export default class ReadQueuePlugin extends Plugin {
 		}
 
 		if (looksLikeUrl(trimmed)) {
-			this.addReading({ url: trimmed });
+			this.addItem({ url: trimmed });
 			return;
 		}
 
@@ -157,7 +158,7 @@ export default class ReadQueuePlugin extends Plugin {
 		const firstLine = lines[0]?.trim() ?? "";
 		const rest = lines.slice(1).join("\n").trim();
 
-		this.addReading({
+		this.addItem({
 			title: firstLine.slice(0, 200),
 			description: rest || (firstLine.length > 200 ? trimmed : ""),
 		});
@@ -170,7 +171,7 @@ export default class ReadQueuePlugin extends Plugin {
 			text = await navigator.clipboard.readText();
 		} catch {
 			new Notice("Could not read the clipboard. Paste the link instead.");
-			this.addReading();
+			this.addItem();
 			return;
 		}
 
@@ -182,11 +183,7 @@ export default class ReadQueuePlugin extends Plugin {
 		this.addFromText(text);
 	}
 
-	/**
-	 * Validates and saves a new reading item, filling in page details
-	 * when a URL is available. Returns the existing note on duplicates.
-	 */
-	async createReading(draft: NewReadingItem): Promise<ReadingNote> {
+	async createItem(draft: NewCatchupItem): Promise<CatchupEntry> {
 		let url = draft.url
 			? normalizeUrl(draft.url)?.href ?? ""
 			: "";
@@ -205,7 +202,7 @@ export default class ReadQueuePlugin extends Plugin {
 
 			if (existing) {
 				new Notice(
-					`"${existing.item.title}" is already in your reading queue`
+					`"${existing.item.title}" is already in Catchup`
 				);
 				await this.activateView();
 				return existing;
@@ -239,7 +236,7 @@ export default class ReadQueuePlugin extends Plugin {
 			throw new Error("Add a link or a title");
 		}
 
-		const note = await this.repository.create({
+		const entry = await this.repository.create({
 			title,
 			url,
 			description,
@@ -250,18 +247,18 @@ export default class ReadQueuePlugin extends Plugin {
 			status: draft.status,
 		});
 
-		new Notice(`Added "${note.item.title}" to your reading queue`);
+		new Notice(`Added "${entry.item.title}" to Catchup`);
 
 		await this.refreshViews();
 
-		return note;
+		return entry;
 	}
 
 	async refreshViews(): Promise<void> {
 		for (const leaf of this.app.workspace.getLeavesOfType(
-			VIEW_TYPE_READING_QUEUE
+			VIEW_TYPE_CATCHUP
 		)) {
-			if (leaf.view instanceof ReadingQueueView) {
+			if (leaf.view instanceof CatchupView) {
 				await leaf.view.refresh();
 			}
 		}
@@ -269,7 +266,7 @@ export default class ReadQueuePlugin extends Plugin {
 
 	async activateView(): Promise<void> {
 		const existing = this.app.workspace
-			.getLeavesOfType(VIEW_TYPE_READING_QUEUE);
+			.getLeavesOfType(VIEW_TYPE_CATCHUP);
 
 		const existingLeaf = existing[0];
 
@@ -285,30 +282,31 @@ export default class ReadQueuePlugin extends Plugin {
 		if (!leaf) return;
 
 		await leaf.setViewState({
-			type: VIEW_TYPE_READING_QUEUE,
+			type: VIEW_TYPE_CATCHUP,
 			active: true,
 		});
 
 		await this.app.workspace.revealLeaf(leaf);
 	}
 
-	private isReadingPath(path: string): boolean {
+	private isCatchupPath(path: string): boolean {
 		const folder = this.repository.folderPath;
 
 		return path === folder || path.startsWith(`${folder}/`);
 	}
 
-	private isReadingFile(file: TAbstractFile): boolean {
+	private isCatchupFile(file: TAbstractFile): boolean {
 		if (!(file instanceof TFile) || file.extension !== "md") {
 			return false;
 		}
 
-		if (this.isReadingPath(file.path)) {
+		if (this.isCatchupPath(file.path)) {
 			return true;
 		}
 
-		return this.app.metadataCache
-			.getFileCache(file)?.frontmatter?.type === "reading";
+		return isCatchupType(
+			this.app.metadataCache.getFileCache(file)?.frontmatter?.type
+		);
 	}
 
 	private scheduleRefresh(): void {

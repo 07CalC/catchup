@@ -1,44 +1,44 @@
-# Read Queue
+# Catchup
 
-An Obsidian plugin for saving things you want to read later: articles, videos,
-books, podcasts, or plain notes and ideas without a link.
+Catchup is an Obsidian plugin for saving articles, videos, books, podcasts,
+notes and ideas to read later.
 
 Every item becomes a markdown note in your vault with frontmatter for its
-status, priority, type and tags, plus a `## Notes` section for your thoughts.
-The **Reading Queue** sidebar lists everything and lets you search, filter,
-open the original, open the note, change status, or delete an item.
+status, priority, type and tags, plus a notes section for your thoughts. The
+Catchup view lists everything and lets you search, filter, open the original,
+open the note, change status or remove an item.
 
 Requires Obsidian 1.7.2 or newer.
 
 ## Usage
 
-- Click the book icon in the ribbon, or run **Open reading queue**.
-- Run **Add to reading queue** to open the capture dialog.
+- Click the book icon in the ribbon, or run **Catchup: Open queue**.
+- Run **Catchup: Add item** to open the capture dialog.
   - Paste a link and the title, description and favicon are fetched for you.
   - Leave the link empty to save a note or idea.
-  - You can enter a bare domain like `example.com/article`.
-- Run **Add clipboard contents to reading queue** to capture from the clipboard.
-- Run **Add selection to reading queue** to capture selected text from a note.
+  - Enter a bare domain such as `example.com/article`.
+- Run **Catchup: Add clipboard contents** to capture from the clipboard.
+- Run **Catchup: Add selection** to capture selected text from a note.
 
 ## Settings
 
-- **Reading folder**: where new reading notes are created (default `Reading`).
-- **Fetch page details**: turn off to save links without any network requests.
+- **Saving folder**: where new Catchup items are saved (default `Catchup`).
+- **Fetch page details**: turn off to save links without network requests.
 
 ## Mobile
 
-Works on iOS and Android. On phones the queue opens as a regular tab; on
-tablets and desktop it opens in the right sidebar.
+Catchup works on iOS and Android. On phones the view opens as a regular tab;
+on tablets and desktop it opens in the right sidebar.
 
-The **Add clipboard contents** command depends on the system clipboard API and
-may be blocked by iOS/Android. If it cannot read the clipboard, it opens the
-normal capture dialog so you can paste the link yourself.
+The clipboard command depends on the system clipboard API and may be blocked
+by iOS or Android. If the clipboard cannot be read, Catchup opens the capture
+dialog so you can paste the link manually.
 
 ## Development
 
 ```bash
 npm install
-npm run dev    # watch build
-npm run build  # type-check and production build
+npm run dev
+npm run build
 npm run lint
 ```

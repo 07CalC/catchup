@@ -1,6 +1,6 @@
 import { requestUrl } from "obsidian";
 
-import type { ReadingKind } from "../types";
+import type { ItemKind } from "../types";
 
 export interface PageMetadata {
 	title: string;
@@ -41,7 +41,7 @@ export function looksLikeUrl(input: string): boolean {
 	return normalizeUrl(input) !== null;
 }
 
-export function guessKind(url: string): ReadingKind {
+export function guessKind(url: string): ItemKind {
 	let hostname: string;
 
 	try {

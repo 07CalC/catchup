@@ -1,21 +1,21 @@
 import { App, PluginSettingTab, Setting } from "obsidian";
 
-import type ReadQueuePlugin from "./main";
+import type CatchupPlugin from "./main";
 
-export interface ReadQueueSettings {
+export interface CatchupSettings {
 	folder: string;
 	fetchMetadata: boolean;
 }
 
-export const DEFAULT_SETTINGS: ReadQueueSettings = {
-	folder: "Reading",
+export const DEFAULT_SETTINGS: CatchupSettings = {
+	folder: "Catchup",
 	fetchMetadata: true,
 };
 
-export class ReadQueueSettingTab extends PluginSettingTab {
-	plugin: ReadQueuePlugin;
+export class CatchupSettingTab extends PluginSettingTab {
+	plugin: CatchupPlugin;
 
-	constructor(app: App, plugin: ReadQueuePlugin) {
+	constructor(app: App, plugin: CatchupPlugin) {
 		super(app, plugin);
 		this.plugin = plugin;
 	}
@@ -26,13 +26,13 @@ export class ReadQueueSettingTab extends PluginSettingTab {
 		containerEl.empty();
 
 		new Setting(containerEl)
-			.setName("Reading folder")
+			.setName("Saving folder")
 			.setDesc(
-				"Vault folder where new reading notes are created. It will be created if it does not exist."
+				"Vault folder where new Catchup items are saved. The folder is created if it does not exist."
 			)
 			.addText((text) =>
 				text
-					.setPlaceholder("Reading")
+					.setPlaceholder("Catchup")
 					.setValue(this.plugin.settings.folder)
 					.onChange(async (value) => {
 						this.plugin.settings.folder = value;
@@ -43,7 +43,7 @@ export class ReadQueueSettingTab extends PluginSettingTab {
 		new Setting(containerEl)
 			.setName("Fetch page details")
 			.setDesc(
-				"When adding a link, fetch the page title, description and favicon automatically."
+				"Automatically fetch the page title, description and favicon when a link is added."
 			)
 			.addToggle((toggle) =>
 				toggle

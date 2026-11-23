@@ -1,8 +1,8 @@
-export type ReadingStatus = "unread" | "reading" | "read";
+export type ItemStatus = "unread" | "reading" | "read";
 
-export type ReadingPriority = "low" | "normal" | "high";
+export type ItemPriority = "low" | "normal" | "high";
 
-export type ReadingKind =
+export type ItemKind =
 	| "article"
 	| "video"
 	| "book"
@@ -10,30 +10,30 @@ export type ReadingKind =
 	| "note"
 	| "other";
 
-export interface ReadingItem {
+export interface CatchupItem {
 	title: string;
 	url: string;
 	description: string;
 	favicon: string;
-	kind: ReadingKind;
-	status: ReadingStatus;
+	kind: ItemKind;
+	status: ItemStatus;
 	tags: string[];
-	priority: ReadingPriority;
+	priority: ItemPriority;
 	added: string;
 }
 
-export interface NewReadingItem {
+export interface NewCatchupItem {
 	title?: string;
 	url?: string;
 	description?: string;
 	favicon?: string;
-	kind?: ReadingKind;
-	status?: ReadingStatus;
+	kind?: ItemKind;
+	status?: ItemStatus;
 	tags?: string[];
-	priority?: ReadingPriority;
+	priority?: ItemPriority;
 }
 
-export const READING_KINDS: ReadingKind[] = [
+export const ITEM_KINDS: ItemKind[] = [
 	"article",
 	"video",
 	"book",
@@ -42,13 +42,13 @@ export const READING_KINDS: ReadingKind[] = [
 	"other",
 ];
 
-export const READING_STATUSES: ReadingStatus[] = [
+export const ITEM_STATUSES: ItemStatus[] = [
 	"unread",
 	"reading",
 	"read",
 ];
 
-export const READING_PRIORITIES: ReadingPriority[] = [
+export const ITEM_PRIORITIES: ItemPriority[] = [
 	"low",
 	"normal",
 	"high",
