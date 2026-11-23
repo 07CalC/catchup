@@ -1,6 +1,6 @@
 {
 	"name": "obsidian-catchup",
-	"version": "1.0.0",
+	"version": "1.0.2",
 	"description": "Save and organize links, notes and ideas in a searchable list or Kanban board.",
 	"main": "main.js",
 	"type": "module",
