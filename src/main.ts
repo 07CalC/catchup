@@ -12,7 +12,8 @@ import {
 } from "./modals/AddItemModal";
 import {
 	CatchupView,
-	VIEW_TYPE_CATCHUP,
+	VIEW_TYPE_CATCHUP_BOARD,
+	VIEW_TYPE_CATCHUP_LIST,
 } from "./views/CatchupView";
 import {
 	fetchMetadata,
@@ -47,8 +48,13 @@ export default class CatchupPlugin extends Plugin {
 		);
 
 		this.registerView(
-			VIEW_TYPE_CATCHUP,
-			(leaf) => new CatchupView(leaf, this)
+			VIEW_TYPE_CATCHUP_LIST,
+			(leaf) => new CatchupView(leaf, this, "list")
+		);
+
+		this.registerView(
+			VIEW_TYPE_CATCHUP_BOARD,
+			(leaf) => new CatchupView(leaf, this, "board")
 		);
 
 		this.addSettingTab(new CatchupSettingTab(this.app, this));
@@ -135,6 +141,12 @@ export default class CatchupPlugin extends Plugin {
 	async saveSettings(): Promise<void> {
 		await this.saveData(this.settings);
 		await this.refreshViews();
+	}
+
+	async setPreferredView(view: "list" | "board"): Promise<void> {
+		this.settings.view = view;
+		await this.saveSettings();
+		await this.activateView(view);
 	}
 
 	addItem(seed: AddItemSeed = {}): void {
@@ -255,18 +267,23 @@ export default class CatchupPlugin extends Plugin {
 	}
 
 	async refreshViews(): Promise<void> {
-		for (const leaf of this.app.workspace.getLeavesOfType(
-			VIEW_TYPE_CATCHUP
-		)) {
+		const leaves = [
+			...this.app.workspace.getLeavesOfType(VIEW_TYPE_CATCHUP_LIST),
+			...this.app.workspace.getLeavesOfType(VIEW_TYPE_CATCHUP_BOARD),
+		];
+		for (const leaf of leaves) {
 			if (leaf.view instanceof CatchupView) {
 				await leaf.view.refresh();
 			}
 		}
 	}
 
-	async activateView(): Promise<void> {
+	async activateView(view: "list" | "board" = this.settings.view): Promise<void> {
+		const viewType = view === "board"
+			? VIEW_TYPE_CATCHUP_BOARD
+			: VIEW_TYPE_CATCHUP_LIST;
 		const existing = this.app.workspace
-			.getLeavesOfType(VIEW_TYPE_CATCHUP);
+			.getLeavesOfType(viewType);
 
 		const existingLeaf = existing[0];
 
@@ -275,14 +292,14 @@ export default class CatchupPlugin extends Plugin {
 			return;
 		}
 
-		const leaf = Platform.isPhone
+		const leaf = view === "board" || Platform.isPhone
 			? this.app.workspace.getLeaf("tab")
 			: this.app.workspace.getRightLeaf(false);
 
 		if (!leaf) return;
 
 		await leaf.setViewState({
-			type: VIEW_TYPE_CATCHUP,
+			type: viewType,
 			active: true,
 		});
 

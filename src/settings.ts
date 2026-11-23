@@ -5,11 +5,13 @@ import type CatchupPlugin from "./main";
 export interface CatchupSettings {
 	folder: string;
 	fetchMetadata: boolean;
+	view: "list" | "board";
 }
 
 export const DEFAULT_SETTINGS: CatchupSettings = {
 	folder: "Catchup",
 	fetchMetadata: true,
+	view: "list",
 };
 
 export class CatchupSettingTab extends PluginSettingTab {
@@ -51,6 +53,19 @@ export class CatchupSettingTab extends PluginSettingTab {
 					.onChange(async (value) => {
 						this.plugin.settings.fetchMetadata = value;
 						await this.plugin.saveSettings();
+					})
+			);
+
+		new Setting(containerEl)
+			.setName("Default resource view")
+			.setDesc("Choose which Catchup view opens. List opens in the sidebar; Kanban opens in a workspace tab.")
+			.addDropdown((dropdown) =>
+				dropdown
+					.addOption("list", "List")
+					.addOption("board", "Kanban board")
+					.setValue(this.plugin.settings.view)
+					.onChange(async (value) => {
+						await this.plugin.setPreferredView(value as "list" | "board");
 					})
 			);
 	}

@@ -17,14 +17,15 @@ import {
 	type ItemStatus,
 } from "../types";
 
-export const VIEW_TYPE_CATCHUP = "catchup-view";
+export const VIEW_TYPE_CATCHUP_LIST = "catchup-list-view";
+export const VIEW_TYPE_CATCHUP_BOARD = "catchup-board-view";
 
 type StatusFilter = ItemStatus | "all";
 
 const STATUS_LABELS: Record<ItemStatus, string> = {
-	unread: "Unread",
-	reading: "Reading",
-	read: "Read",
+	unread: "To explore",
+	reading: "In progress",
+	read: "Done",
 };
 
 const STATUS_ORDER: Record<ItemStatus, number> = {
@@ -85,17 +86,20 @@ export class CatchupView extends ItemView {
 
 	constructor(
 		leaf: WorkspaceLeaf,
-		private readonly plugin: CatchupPlugin
+		private readonly plugin: CatchupPlugin,
+		private readonly mode: "list" | "board"
 	) {
 		super(leaf);
 	}
 
 	getViewType(): string {
-		return VIEW_TYPE_CATCHUP;
+		return this.mode === "board"
+			? VIEW_TYPE_CATCHUP_BOARD
+			: VIEW_TYPE_CATCHUP_LIST;
 	}
 
 	getDisplayText(): string {
-		return "Catchup";
+		return this.mode === "board" ? "Catchup Board" : "Catchup";
 	}
 
 	getIcon(): string {
@@ -165,33 +169,34 @@ export class CatchupView extends ItemView {
 			this.renderList();
 		});
 
-		const filters = toolbar.createDiv({
-			cls: "catchup-filters",
-		});
-
 		this.filterButtons = [];
-
-		const filtersList: Array<{ status: StatusFilter; label: string }> = [
-			{ status: "all", label: "All" },
-			{ status: "unread", label: "Unread" },
-			{ status: "reading", label: "Reading" },
-			{ status: "read", label: "Read" },
-		];
-
-		for (const filter of filtersList) {
-			const button = filters.createEl("button", {
-				cls: "catchup-filter",
+		if (this.mode === "list") {
+			const filters = toolbar.createDiv({
+				cls: "catchup-filters",
 			});
 
-			button.addEventListener("click", () => {
-				this.filter = filter.status;
-				this.renderList();
-			});
+			const filtersList: Array<{ status: StatusFilter; label: string }> = [
+				{ status: "all", label: "All" },
+				{ status: "unread", label: STATUS_LABELS.unread },
+				{ status: "reading", label: STATUS_LABELS.reading },
+				{ status: "read", label: STATUS_LABELS.read },
+			];
 
-			this.filterButtons.push({
-				status: filter.status,
-				el: button,
-			});
+			for (const filter of filtersList) {
+				const button = filters.createEl("button", {
+					cls: "catchup-filter",
+				});
+
+				button.addEventListener("click", () => {
+					this.filter = filter.status;
+					this.renderList();
+				});
+
+				this.filterButtons.push({
+					status: filter.status,
+					el: button,
+				});
+			}
 		}
 
 		this.listEl = contentEl.createDiv({
@@ -206,6 +211,7 @@ export class CatchupView extends ItemView {
 
 		const listEl = this.listEl;
 		listEl.empty();
+		listEl.removeClass("catchup-board");
 
 		const query = this.query.trim().toLowerCase();
 
@@ -234,13 +240,18 @@ export class CatchupView extends ItemView {
 
 		this.updateFilterLabels();
 
-		const unread = this.entries.filter(
+		const toExplore = this.entries.filter(
 			(entry) => entry.item.status === "unread"
 		).length;
 
 		this.countEl?.setText(
-			`${unread} unread · ${this.entries.length} total`
+			`${toExplore} to explore · ${this.entries.length} total`
 		);
+
+		if (this.mode === "board") {
+			this.renderBoard(filtered);
+			return;
+		}
 
 		if (filtered.length === 0) {
 			listEl.createEl("p", {
@@ -254,7 +265,60 @@ export class CatchupView extends ItemView {
 		}
 
 		for (const entry of filtered) {
-			this.renderItem(entry);
+			this.renderItem(entry, listEl);
+		}
+	}
+
+	private renderBoard(entries: CatchupEntry[]): void {
+		if (!this.listEl) return;
+
+		this.listEl.addClass("catchup-board");
+
+		for (const status of ITEM_STATUSES) {
+			const column = this.listEl.createDiv({
+				cls: "catchup-column",
+				attr: { "data-status": status },
+			});
+
+			column.addEventListener("dragover", (event) => {
+				event.preventDefault();
+				column.addClass("is-drop-target");
+			});
+			column.addEventListener("dragleave", (event) => {
+				if (!column.contains(event.relatedTarget as Node | null)) {
+					column.removeClass("is-drop-target");
+				}
+			});
+			column.addEventListener("drop", (event) => {
+				event.preventDefault();
+				column.removeClass("is-drop-target");
+				const path = event.dataTransfer?.getData("text/plain");
+				const entry = entries.find((candidate) => candidate.file.path === path)
+					?? this.entries.find((candidate) => candidate.file.path === path);
+				if (entry) void this.updateStatus(entry, status);
+			});
+
+			const columnEntries = entries.filter(
+				(entry) => entry.item.status === status
+			);
+			const heading = column.createDiv({ cls: "catchup-column-heading" });
+			heading.createEl("h4", { text: STATUS_LABELS[status] });
+			heading.createSpan({
+				cls: "catchup-column-count",
+				text: String(columnEntries.length),
+			});
+
+			const cards = column.createDiv({ cls: "catchup-column-cards" });
+			if (columnEntries.length === 0) {
+				cards.createEl("p", {
+					cls: "catchup-column-empty",
+					text: "Drop a resource here",
+				});
+			}
+
+			for (const entry of columnEntries) {
+				this.renderItem(entry, cards, true);
+			}
 		}
 	}
 
@@ -273,16 +337,28 @@ export class CatchupView extends ItemView {
 		}
 	}
 
-	private renderItem(entry: CatchupEntry): void {
-		if (!this.listEl) return;
-
+	private renderItem(
+		entry: CatchupEntry,
+		container: HTMLElement,
+		draggable = false
+	): void {
 		const { item, file } = entry;
 
-		const card = this.listEl.createDiv({
+		const card = container.createDiv({
 			cls: "catchup-item",
+			attr: { "data-status": item.status },
 		});
 
 		card.toggleClass("is-read", item.status === "read");
+		if (draggable) {
+			card.setAttribute("draggable", "true");
+			card.addEventListener("dragstart", (event) => {
+				card.addClass("is-dragging");
+				event.dataTransfer?.setData("text/plain", file.path);
+				if (event.dataTransfer) event.dataTransfer.effectAllowed = "move";
+			});
+			card.addEventListener("dragend", () => card.removeClass("is-dragging"));
+		}
 
 		const main = card.createDiv({
 			cls: "catchup-item-main",
