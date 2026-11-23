@@ -1,0 +1,10 @@
+{
+	"id": "07CalC/ReadQueue",
+	"name": "Read Queue",
+	"version": "1.0.0",
+	"minAppVersion": "1.0.0",
+	"description": "A plugin that allows you to queue up resources to read later.",
+	"author": "CalC <hello@vinm.me>",
+	"authorUrl": "https://vinm.me",
+	"isDesktopOnly": false
+}
