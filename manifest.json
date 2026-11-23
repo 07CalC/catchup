@@ -3,7 +3,7 @@
 	"name": "Catchup",
 	"version": "1.0.0",
 	"minAppVersion": "1.7.2",
-	"description": "Capture links, notes and ideas to read later.",
+	"description": "Save and organize links, notes and ideas in a searchable list or Kanban board.",
 	"author": "CalC <hello@vinm.me>",
 	"authorUrl": "https://vinm.me",
 	"isDesktopOnly": false
